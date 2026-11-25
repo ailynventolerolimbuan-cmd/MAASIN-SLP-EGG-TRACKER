@@ -117,6 +117,21 @@
       outline-offset: 2px;
     }
 
+    .edit-btn,
+    .delete-btn {
+      min-height: 36px;
+      margin: 2px;
+      padding: 6px 10px;
+    }
+
+    .delete-btn {
+      background: #e86e8d;
+    }
+
+    .empty-state[hidden] {
+      display: none;
+    }
+
     .form-actions {
       display: flex;
       align-items: center;
