@@ -1,112 +1,121 @@
-const STORAGE_KEY = "maasin-slp-egg-sales";
 
-const saleForm = document.querySelector("#sale-form");
-const traysInput = document.querySelector("#trays");
-const priceInput = document.querySelector("#price");
-const dateInput = document.querySelector("#sale-date");
-const customerInput = document.querySelector("#customer");
-const formMessage = document.querySelector("#form-message");
-const salesList = document.querySelector("#sales-list");
-const totalSales = document.querySelector("#total-sales");
-const emptyState = document.querySelector("#empty-state");
+const form = document.getElementById("sale-form");
+const traysInput = document.getElementById("trays");
+const priceInput = document.getElementById("price");
+const dateInput = document.getElementById("sale-date");
+const customerInput = document.getElementById("customer");
+const salesList = document.getElementById("sales-list");
+const totalSales = document.getElementById("total-sales");
+const formMessage = document.getElementById("form-message");
 
-let sales = loadSales();
+let sales = [];
+let editingId = null;
 
-function loadSales() {
-  try {
-    const savedSales = JSON.parse(localStorage.getItem(STORAGE_KEY));
-    return Array.isArray(savedSales) ? savedSales : [];
-  } catch {
-    return [];
-  }
-}
-
-function formatCurrency(amount) {
-  return new Intl.NumberFormat("en-PH", {
-    style: "currency",
-    currency: "PHP"
-  }).format(amount);
-}
-
-function formatDate(dateValue) {
-  const date = new Date(`${dateValue}T00:00:00`);
-
-  if (Number.isNaN(date.getTime())) {
-    return dateValue;
-  }
-
-  return new Intl.DateTimeFormat("en-PH", {
-    year: "numeric",
-    month: "short",
-    day: "numeric"
-  }).format(date);
-}
-
-function renderSales() {
-  salesList.replaceChildren();
-
-  let grandTotal = 0;
-
-  sales.forEach((sale) => {
-    const saleTotal = sale.trays * sale.price;
-    grandTotal += saleTotal;
-
-    const row = document.createElement("tr");
-    const values = [
-      formatDate(sale.date),
-      sale.customer || "Walk-in",
-      sale.trays,
-      formatCurrency(sale.price),
-      formatCurrency(saleTotal)
-    ];
-
-    values.forEach((value) => {
-      const cell = document.createElement("td");
-      cell.textContent = value;
-      row.append(cell);
-    });
-
-    salesList.append(row);
-  });
-
-  totalSales.textContent = formatCurrency(grandTotal);
-  emptyState.hidden = sales.length > 0;
-}
-
-saleForm.addEventListener("submit", (event) => {
+// Save or update a sale
+form.addEventListener("submit", function (event) {
   event.preventDefault();
 
-  const trays = Number(traysInput.value);
-  const price = Number(priceInput.value);
+  const trays = parseFloat(traysInput.value);
+  const price = parseFloat(priceInput.value);
   const date = dateInput.value;
   const customer = customerInput.value.trim();
 
-  if (!Number.isFinite(trays) || trays <= 0) {
-    formMessage.textContent = "Enter a valid number of trays.";
-    traysInput.focus();
+  if (!trays || trays <= 0 || !price || price <= 0 || !date) {
+    formMessage.textContent = "Please enter valid sale details.";
     return;
   }
 
-  if (!Number.isFinite(price) || price <= 0) {
-    formMessage.textContent = "Enter a valid price per tray.";
-    priceInput.focus();
-    return;
+  if (editingId !== null) {
+    const sale = sales.find(item => item.id === editingId);
+
+    if (sale) {
+      sale.trays = trays;
+      sale.price = price;
+      sale.date = date;
+      sale.customer = customer;
+    }
+
+    editingId = null;
+    form.querySelector("button[type='submit']").textContent = "Save sale";
+  } else {
+    sales.push({
+      id: Date.now(),
+      trays,
+      price,
+      date,
+      customer
+    });
   }
 
-  if (!date) {
-    formMessage.textContent = "Select a sale date.";
-    dateInput.focus();
-    return;
-  }
-
-  sales.unshift({ trays, price, date, customer });
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(sales));
-
+  form.reset();
+  formMessage.textContent = "Sale saved successfully!";
   renderSales();
-  saleForm.reset();
-  dateInput.value = new Date().toISOString().split("T")[0];
-  formMessage.textContent = "Sale saved successfully.";
 });
 
-dateInput.value = new Date().toISOString().split("T")[0];
-renderSales();
+// Display sales
+function renderSales() {
+  salesList.innerHTML = "";
+  let total = 0;
+
+  sales.forEach(sale => {
+    const amount = sale.trays * sale.price;
+    total += amount;
+
+    const row = document.createElement("tr");
+
+    row.innerHTML = `
+      <td>${sale.date}</td>
+      <td>${sale.customer || "Walk-in customer"}</td>
+      <td>${sale.trays}</td>
+      <td>₱${sale.price.toFixed(2)}</td>
+      <td>₱${amount.toFixed(2)}</td>
+      <td>
+        <button type="button" class="edit-btn" data-id="${sale.id}">Edit</button>
+        <button type="button" class="delete-btn" data-id="${sale.id}">Delete</button>
+      </td>
+    `;
+
+    salesList.appendChild(row);
+  });
+
+  totalSales.textContent = `₱${total.toFixed(2)}`;
+}
+
+// Edit sale
+salesList.addEventListener("click", function (event) {
+  const id = Number(event.target.dataset.id);
+
+  if (event.target.classList.contains("edit-btn")) {
+    const sale = sales.find(item => item.id === id);
+
+    if (!sale) return;
+
+    traysInput.value = sale.trays;
+    priceInput.value = sale.price;
+    dateInput.value = sale.date;
+    customerInput.value = sale.customer;
+
+    editingId = id;
+    form.querySelector("button[type='submit']").textContent = "Update sale";
+    formMessage.textContent = "Edit the sale details, then click Update sale.";
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  // Delete sale
+  if (event.target.classList.contains("delete-btn")) {
+    const confirmDelete = confirm("Are you sure you want to delete this sale?");
+
+    if (confirmDelete) {
+      sales = sales.filter(item => item.id !== id);
+
+      if (editingId === id) {
+        editingId = null;
+        form.reset();
+        form.querySelector("button[type='submit']").textContent = "Save sale";
+      }
+
+      renderSales();
+      formMessage.textContent = "Sale deleted successfully.";
+    }
+  }
+});
